@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:habit_tracker/splash_screen.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 void main() {
@@ -15,7 +16,7 @@ class HabitTrackerApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const HomePage(),
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
@@ -30,26 +31,22 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<String> habits = [];
-  List<bool> habitStatus = [];
-  Map<String, DateTime> habitDates = {};
-  Map<String, DateTime?> completionDates = {};
+  List<Map<String, dynamic>> habits = [];
+  List<String> categories = ['Health', 'Productivity', 'Personal Growth'];
+  String? selectedCategory;
 
-  // Navigate to Add Habit Page and get the new habit name
+  // Navigate to Add Habit Page and get the new habit details
   void _navigateToAddHabitPage() async {
     final newHabit = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AddHabitPage(),
+        builder: (context) => AddHabitPage(categories: categories),
       ),
     );
 
-    if (newHabit != null && newHabit is String) {
+    if (newHabit != null && newHabit is Map<String, dynamic>) {
       setState(() {
         habits.add(newHabit);
-        habitStatus.add(false); // Initialize new habit status as incomplete
-        habitDates[newHabit] = DateTime.now();
-        completionDates[newHabit] = null; // Initialize completion date as null
       });
     }
   }
@@ -57,37 +54,47 @@ class _HomePageState extends State<HomePage> {
   // Toggle the status of a habit (complete/incomplete)
   void _toggleHabitStatus(int index) {
     setState(() {
-      habitStatus[index] = !habitStatus[index];
-      completionDates[habits[index]] =
-          habitStatus[index] ? DateTime.now() : null; // Update completion date
+      habits[index]['status'] = !habits[index]['status'];
     });
   }
 
   // Remove a habit
   void _removeHabit(int index) {
     setState(() {
-      completionDates.remove(habits[index]);
-      habitDates.remove(habits[index]);
       habits.removeAt(index);
-      habitStatus.removeAt(index);
     });
-  }
-
-  // Function to calculate relative time
-  String timeAgo(DateTime dateTime) {
-    return timeago.format(dateTime, locale: 'en_short');
   }
 
   @override
   Widget build(BuildContext context) {
+    List<Map<String, dynamic>> filteredHabits = selectedCategory == null
+        ? habits
+        : habits.where((habit) => habit['category'] == selectedCategory).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Habit Tracker'),
         centerTitle: true,
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              setState(() {
+                selectedCategory = value == 'All' ? null : value;
+              });
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'All', child: Text('All')),
+              ...categories.map((category) => PopupMenuItem(
+                    value: category,
+                    child: Text(category),
+                  )),
+            ],
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: habits.isEmpty
+        child: filteredHabits.isEmpty
             ? const Center(
                 child: Text(
                   'No habits yet! Tap the + button to add one.',
@@ -96,39 +103,27 @@ class _HomePageState extends State<HomePage> {
                 ),
               )
             : ListView.builder(
-                itemCount: habits.length,
+                itemCount: filteredHabits.length,
                 itemBuilder: (context, index) {
-                  final habit = habits[index];
                   return Card(
                     elevation: 4,
                     margin: const EdgeInsets.symmetric(vertical: 8),
                     child: ListTile(
                       title: Text(
-                        habit,
+                        filteredHabits[index]['name'],
                         style: TextStyle(
-                          decoration: habitStatus[index]
+                          decoration: filteredHabits[index]['status']
                               ? TextDecoration.lineThrough
                               : TextDecoration.none,
                         ),
                       ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Added: ${timeAgo(habitDates[habit]!)}',
-                          ),
-                          if (completionDates[habit] != null)
-                            Text(
-                              'Completed: ${timeAgo(completionDates[habit]!)}',
-                              style: const TextStyle(color: Colors.green),
-                            ),
-                        ],
-                      ),
+                      subtitle: Text(
+                          'Category: ${filteredHabits[index]['category']}\nAdded on: ${filteredHabits[index]['date'].toLocal().toString().split(' ')[0]}'),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Checkbox(
-                            value: habitStatus[index],
+                            value: filteredHabits[index]['status'],
                             onChanged: (value) => _toggleHabitStatus(index),
                           ),
                           IconButton(
@@ -151,11 +146,14 @@ class _HomePageState extends State<HomePage> {
 }
 
 class AddHabitPage extends StatelessWidget {
-  const AddHabitPage({super.key});
+  final List<String> categories;
+
+  const AddHabitPage({Key? key, required this.categories}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final TextEditingController habitController = TextEditingController();
+    String? selectedCategory;
 
     return Scaffold(
       appBar: AppBar(
@@ -171,20 +169,42 @@ class AddHabitPage extends StatelessWidget {
               'Enter the name of your habit:',
               style: TextStyle(fontSize: 16),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
             TextField(
               controller: habitController,
               decoration: const InputDecoration(
-                labelText: 'Habit Name',
-                border: OutlineInputBorder(),
+                hintText: 'E.g. Exercise for 30 minutes',
+              ),
+            ),
+            const SizedBox(height: 20),
+            DropdownButtonFormField<String>(
+              value: selectedCategory,
+              items: categories.map((category) {
+                return DropdownMenuItem(
+                  value: category,
+                  child: Text(category),
+                );
+              }).toList(),
+              onChanged: (value) {
+                selectedCategory = value;
+              },
+              decoration: const InputDecoration(
+                labelText: 'Category',
               ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
-                final newHabit = habitController.text.trim();
-                if (newHabit.isNotEmpty) {
-                  Navigator.pop(context, newHabit);
+                if (habitController.text.isNotEmpty && selectedCategory != null) {
+                  Navigator.pop(
+                    context,
+                    {
+                      'name': habitController.text,
+                      'category': selectedCategory,
+                      'status': false,
+                      'date': DateTime.now(),
+                    },
+                  );
                 }
               },
               child: const Text('Add Habit'),
