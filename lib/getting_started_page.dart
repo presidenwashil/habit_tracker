@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:habit_tracker/main.dart';
+import 'package:habit_tracker/home_page.dart';
 
 class GettingStartedPage extends StatefulWidget {
   const GettingStartedPage({super.key});
